@@ -1,0 +1,45 @@
+{
+  "name": "@physcode/ai-index",
+  "version": "2.1.0",
+  "description": "Dynamic file indexing for AI assistants - MCP server for context-efficient reading",
+  "type": "module",
+  "main": "src/index.mjs",
+  "bin": {
+    "ai-index": "./bin/ai-index.mjs",
+    "ai-index-mcp": "./src/mcp-server.mjs"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "mcp": "node src/mcp-server.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "keywords": [
+    "ai",
+    "ai-index",
+    "claude",
+    "gpt",
+    "llm",
+    "context",
+    "indexing",
+    "code-assistant",
+    "developer-tools"
+  ],
+  "author": "PhysCode",
+  "license": "MIT",
+  "homepage": "https://github.com/physcode/ai-index",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/physcode/ai-index.git"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "CLAUDE.md",
+    "README.md"
+  ]
+}
