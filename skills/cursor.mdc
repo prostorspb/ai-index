@@ -1,0 +1,22 @@
+---
+description: AI-Index for efficient reading of large files
+globs: ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.py", "**/*.rs", "**/*.go"]
+---
+
+Files with `@ai-index` in first 50 lines have a section map.
+
+**Reading indexed files:**
+1. Check lines 1-50 for `@ai-index` table
+2. Find section: `| store/nodes | 180 | 350 |`
+3. Read only that range: lines 180-350
+
+**After editing:** Update End for edited section, shift all sections below.
+
+**Example table:**
+```
+| Section     | Line | End  |
+|-------------|------|------|
+| imports     |    1 |   45 |
+| store/nodes |  180 |  350 |
+| store/edges |  352 |  480 |
+```

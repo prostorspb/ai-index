@@ -1,19 +1,14 @@
 {
   "name": "@physcode/ai-index",
-  "version": "2.1.0",
-  "description": "Dynamic file indexing for AI assistants - MCP server for context-efficient reading",
+  "version": "3.0.0",
+  "description": "File indexing for AI assistants - CLI + Skill approach (no runtime overhead)",
   "type": "module",
   "main": "src/index.mjs",
   "bin": {
-    "ai-index": "./bin/ai-index.mjs",
-    "ai-index-mcp": "./src/mcp-server.mjs"
+    "ai-index": "./bin/ai-index.mjs"
   },
   "scripts": {
-    "test": "node --test test/*.test.mjs",
-    "mcp": "node src/mcp-server.mjs"
-  },
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.0"
+    "test": "node --test test/*.test.mjs"
   },
   "keywords": [
     "ai",
@@ -39,6 +34,7 @@
   "files": [
     "bin/",
     "src/",
+    "skills/",
     "CLAUDE.md",
     "README.md"
   ]
