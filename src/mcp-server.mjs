@@ -1,9 +1,13 @@
 #!/usr/bin/env node
 /**
- * AI-Index MCP Server
+ * AI-Index MCP Server v2.1
  *
  * Динамически генерирует индекс файла по запросу.
  * Не требует модификации исходных файлов.
+ *
+ * Поддержка companion markdown файлов:
+ *   - filename.ai.md (рядом с файлом)
+ *   - .ai/filename.md (в папке .ai)
  *
  * Инструменты:
  *   - get_file_index: Получить карту секций файла
@@ -12,8 +16,9 @@
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { readFile } from 'fs/promises';
-import { extname, basename } from 'path';
+import { readFile, access } from 'fs/promises';
+import { extname, basename, dirname, join } from 'path';
+import { constants } from 'fs';
 
 // ============================================
 // Language Detection
@@ -74,6 +79,110 @@ function detectLanguage(filePath) {
     }
   }
   return null;
+}
+
+// ============================================
+// Companion Markdown Support
+// ============================================
+
+/**
+ * Ищет companion markdown файл с описанием секций
+ * Приоритет: filename.ai.md > .ai/filename.md
+ */
+async function findCompanionMarkdown(filePath) {
+  const dir = dirname(filePath);
+  const name = basename(filePath);
+
+  // Варианты расположения
+  const candidates = [
+    join(dir, `${name}.ai.md`),           // file.ts.ai.md
+    join(dir, '.ai', `${name}.md`),       // .ai/file.ts.md
+    join(dir, '.ai', name.replace(/\.[^.]+$/, '.md')), // .ai/file.md
+  ];
+
+  for (const candidate of candidates) {
+    try {
+      await access(candidate, constants.R_OK);
+      return candidate;
+    } catch {
+      // File doesn't exist, try next
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Парсит companion markdown файл
+ *
+ * Формат:
+ * ```markdown
+ * # filename.ts
+ *
+ * Описание файла (опционально)
+ *
+ * ## Sections
+ *
+ * | Section | Lines | Description |
+ * |---------|-------|-------------|
+ * | imports | 1-45 | External dependencies |
+ * | store/nodes | 180-350 | Node CRUD operations |
+ *
+ * ## Notes
+ *
+ * Дополнительные заметки...
+ * ```
+ */
+async function parseCompanionMarkdown(mdPath) {
+  try {
+    const content = await readFile(mdPath, 'utf-8');
+    const result = {
+      description: '',
+      sections: [],
+      notes: ''
+    };
+
+    // Извлекаем описание (текст до первого ## заголовка)
+    const descMatch = content.match(/^#[^#].*\n\n([\s\S]*?)(?=\n##|$)/);
+    if (descMatch) {
+      result.description = descMatch[1].trim();
+    }
+
+    // Парсим таблицу секций
+    const tableMatch = content.match(/##\s*Sections?\s*\n\n([\s\S]*?)(?=\n##|$)/i);
+    if (tableMatch) {
+      const tableContent = tableMatch[1];
+      // Парсим строки таблицы: | Section | Lines | Description |
+      const rows = tableContent.matchAll(/\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*([^|]*?)\s*\|/g);
+
+      for (const row of rows) {
+        const [, name, lines, desc] = row;
+        // Пропускаем заголовок и разделитель
+        if (name.includes('Section') || name.includes('---')) continue;
+
+        // Парсим диапазон строк: "180-350" или "180"
+        const lineMatch = lines.match(/(\d+)(?:\s*[-–]\s*(\d+))?/);
+        if (lineMatch) {
+          result.sections.push({
+            name: name.trim(),
+            line: parseInt(lineMatch[1]),
+            end: parseInt(lineMatch[2] || lineMatch[1]),
+            desc: desc.trim()
+          });
+        }
+      }
+    }
+
+    // Извлекаем заметки
+    const notesMatch = content.match(/##\s*Notes?\s*\n\n([\s\S]*?)(?=\n##|$)/i);
+    if (notesMatch) {
+      result.notes = notesMatch[1].trim();
+    }
+
+    return result;
+  } catch {
+    return null;
+  }
 }
 
 // ============================================
@@ -210,21 +319,53 @@ function detectSectionsExplicit(lines, langConfig) {
 
 /**
  * Генерирует полный индекс файла
+ *
+ * Приоритет источников:
+ * 1. Companion markdown файл (filename.ai.md или .ai/filename.md)
+ * 2. Явные маркеры #region в коде
+ * 3. Автоматическое определение по паттернам
  */
 async function generateIndex(filePath) {
   const content = await readFile(filePath, 'utf-8');
   const lines = content.split('\n');
   const langConfig = detectLanguage(filePath);
 
-  // Try explicit regions first
-  let sections = detectSectionsExplicit(lines, langConfig);
+  let sections = [];
+  let source = 'auto';
+  let description = '';
+  let notes = '';
+  let companionPath = null;
 
-  // If no explicit regions, use auto-detection
-  if (sections.length === 0) {
-    sections = detectSectionsAuto(lines, langConfig);
+  // 1. Пробуем найти companion markdown
+  companionPath = await findCompanionMarkdown(filePath);
+  if (companionPath) {
+    const companion = await parseCompanionMarkdown(companionPath);
+    if (companion && companion.sections.length > 0) {
+      sections = companion.sections.map(s => ({
+        ...s,
+        size: s.end - s.line + 1
+      }));
+      source = 'markdown';
+      description = companion.description;
+      notes = companion.notes;
+    }
   }
 
-  // If still nothing, create a single "main" section
+  // 2. Если нет markdown, пробуем явные маркеры #region
+  if (sections.length === 0) {
+    sections = detectSectionsExplicit(lines, langConfig);
+    if (sections.length > 0) {
+      source = 'regions';
+    }
+  }
+
+  // 3. Если нет регионов, автоопределение
+  if (sections.length === 0) {
+    sections = detectSectionsAuto(lines, langConfig);
+    source = 'auto';
+  }
+
+  // 4. Если ничего не нашли, создаём одну секцию "main"
   if (sections.length === 0) {
     sections = [{
       name: 'main',
@@ -235,13 +376,21 @@ async function generateIndex(filePath) {
     }];
   }
 
-  return {
+  const result = {
     file: basename(filePath),
     path: filePath,
     language: langConfig?.lang || 'unknown',
     totalLines: lines.length,
+    source, // 'markdown' | 'regions' | 'auto'
     sections
   };
+
+  // Добавляем метаданные из companion markdown
+  if (description) result.description = description;
+  if (notes) result.notes = notes;
+  if (companionPath) result.companionFile = companionPath;
+
+  return result;
 }
 
 /**
@@ -275,7 +424,7 @@ async function readSection(filePath, sectionName) {
 // ============================================
 
 const server = new Server(
-  { name: 'ai-index', version: '2.0.0' },
+  { name: 'ai-index', version: '2.1.0' },
   { capabilities: { tools: {} } }
 );
 

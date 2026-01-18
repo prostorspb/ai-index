@@ -100,6 +100,45 @@ ai-index src/stores/projectStore.ts --verify
 ai-index src/stores/projectStore.ts --remove
 ```
 
+## Companion Markdown Files (Recommended)
+
+Create a markdown file next to your source file to document sections:
+
+**Location options:**
+- `projectStore.ts.ai.md` (next to file)
+- `.ai/projectStore.ts.md` (in .ai folder)
+- `.ai/projectStore.md` (without extension)
+
+**Format:**
+
+```markdown
+# projectStore.ts
+
+Main Zustand store for the project. Manages nodes, edges, and connectors.
+
+## Sections
+
+| Section | Lines | Description |
+|---------|-------|-------------|
+| imports | 1-45 | External dependencies |
+| types | 47-125 | TypeScript interfaces |
+| store/nodes | 180-350 | Node CRUD operations |
+| store/edges | 352-480 | Edge management |
+| store/connectors | 482-620 | Connector generation |
+
+## Notes
+
+This store uses immer for immutable updates.
+See also: uiStore.ts for UI state.
+```
+
+**Benefits:**
+- Human-readable documentation
+- Line numbers updated manually only when needed
+- Extra context (description, notes) for AI
+- No code modifications required
+- Works with any existing codebase
+
 ## Supported Languages
 
 | Language | Extensions | Region Marker |
@@ -113,7 +152,14 @@ ai-index src/stores/projectStore.ts --remove
 | YAML | .yaml, .yml | `# region: name` |
 | JSON | .json, .json5 | `"_ai_index": {...}` |
 
-## Index Format
+## Priority
+
+The MCP server uses this priority for section detection:
+1. **Companion markdown** (if exists) — most reliable
+2. **#region markers** in code — explicit
+3. **Auto-detection** — pattern matching
+
+## Index Format (Legacy)
 
 ```typescript
 /**
